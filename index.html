@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Apocalypse Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04070b;--line:#19e6c1;--dim:#0e4a41;--hot:#ff2a6d;--sea:#f5b700;--txt:#8fe9d9}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--bg);color:var(--txt);font:13px 'Share Tech Mono',monospace;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;cursor:grab}
+canvas:active{cursor:grabbing}
+.box{border:1px solid var(--dim);background:#04070bd9;backdrop-filter:blur(4px);box-shadow:0 0 18px #19e6c111 inset}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;gap:26px;justify-content:center;flex-wrap:wrap;padding:10px 16px 26px;background:linear-gradient(#04070bf0 60%,#04070b00);pointer-events:none}
+.stat{text-align:center;min-width:92px}
+.stat b{display:block;font-size:24px;font-weight:400;color:#e8fffb;text-shadow:0 0 8px var(--line)}
+.stat.hot b{color:var(--hot);text-shadow:0 0 10px var(--hot)}
+.stat span{font-size:10px;letter-spacing:2px;opacity:.65}
+#panel{position:fixed;left:16px;top:96px;width:270px;padding:14px;max-height:calc(100vh - 112px);overflow:auto;scrollbar-width:thin;scrollbar-color:#0e4a41 transparent}
+h1{font-size:17px;font-weight:400;letter-spacing:3px;color:#e8fffb;text-shadow:0 0 8px var(--line);margin-bottom:12px}
+h1 i{color:var(--hot);font-style:normal}
+label{display:block;font-size:10px;letter-spacing:2px;opacity:.7;margin:12px 0 4px}
+select,button{width:100%;font:inherit;color:var(--txt);background:#071017;border:1px solid var(--dim);padding:7px;border-radius:0}
+select:focus,button:focus-visible{outline:1px solid var(--line)}
+button{cursor:pointer;letter-spacing:2px}
+button:hover:not(:disabled){border-color:var(--line);color:#fff}
+button:disabled{opacity:.35;cursor:not-allowed}
+#threats{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+#threats button{font-size:11px;padding:6px 4px;letter-spacing:1px}
+#threats button.on{border-color:var(--hot);color:var(--hot);box-shadow:0 0 8px #ff2a6d55}
+.meteor-only,.quake-only,.disaster,.zombie-only,.volcano-only,.reactor-only{display:none}
+[data-mode=zombie] .zombie-only{display:block}
+[data-mode=zombie] .plague-only{display:none}
+[data-mode=volcano] .volcano-only,[data-mode=volcano] .disaster{display:block}
+[data-mode=volcano] .plague-only{display:none}
+[data-mode=reactor] .reactor-only,[data-mode=reactor] .disaster{display:block}
+[data-mode=reactor] .plague-only{display:none}
+[data-mode=meteor] .meteor-only,[data-mode=meteor] .disaster,[data-mode=quake] .quake-only,[data-mode=quake] .disaster{display:block}
+[data-mode=meteor] .plague-only,[data-mode=quake] .plague-only{display:none}
+#pinfo,#minfo,#qinfo,#zinfo,#vinfo,#rinfo{font-size:11px;line-height:1.5;margin-top:6px;opacity:.85}
+#pinfo em,#minfo em,#qinfo em,#zinfo em,#vinfo em,#rinfo em{color:var(--hot);font-style:normal}
+.row{display:flex;gap:6px;margin-top:12px}
+#go{border-color:var(--hot);color:var(--hot)}
+input[type=range]{width:100%;accent-color:var(--line)}
+#log{position:fixed;right:16px;bottom:16px;width:340px;max-height:38vh;overflow:auto;padding:10px;font-size:11px;line-height:1.55}
+#log:empty{display:none}
+#log div{border-bottom:1px solid #0e4a4155;padding:2px 0}
+#log b{color:var(--hot);font-weight:400}
+#legend{margin-top:12px;font-size:11px;line-height:1.7}
+#legend summary{cursor:pointer;font-size:10px;letter-spacing:2px;opacity:.7;margin-bottom:4px}
+#legend i{display:inline-block;width:22px;height:0;border-top:2px solid var(--hot);vertical-align:middle;margin-right:6px}
+#legend i.sea{border-top:2px dashed var(--sea)}
+#legend i.dot{width:8px;height:8px;border:0;border-radius:50%;background:var(--hot);box-shadow:0 0 6px var(--hot)}
+#tip{position:fixed;pointer-events:none;padding:8px 10px;font-size:11px;line-height:1.5;display:none;z-index:5}
+#tip b{color:#fff;font-weight:400}
+#banner{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);padding:18px 28px;font-size:18px;letter-spacing:3px;color:var(--hot);text-shadow:0 0 10px var(--hot);display:none;text-align:center;pointer-events:none}
+@media (max-width:760px){
+  #hud{gap:10px;padding:8px 16px 18px}.stat{min-width:70px}.stat b{font-size:16px}
+  #panel{top:auto;bottom:16px;left:16px;right:16px;width:auto;max-height:42vh;overflow:auto}
+  #log{display:none}
+}
+</style>
+</head>
+<body>
+<canvas id="globe"></canvas>
+
+<div id="hud">
+  <div class="stat zombie-only"><b id="zDay">0</b><span>DAY</span></div>
+  <div class="stat zombie-only" style="color:#78dc3c"><b id="zZ" style="color:#78dc3c;text-shadow:0 0 10px #78dc3c">0</b><span>ZOMBIES</span></div>
+  <div class="stat zombie-only"><b id="zH">8.10B</b><span>HUMANS ALIVE</span></div>
+  <div class="stat zombie-only hot"><b id="zDead">0</b><span>DEAD OR TURNED</span></div>
+  <div class="stat zombie-only"><b id="zKill">0</b><span>ZOMBIES DESTROYED</span></div>
+  <div class="stat zombie-only"><b id="zFall">0</b><span>REGIONS FALLEN</span></div>
+  <div class="stat zombie-only"><b id="zStage" style="color:#19e6c1">QUIET</b><span>GLOBAL STATUS</span></div>
+  <div class="stat disaster"><b id="mT">T+0</b><span>TIME</span></div>
+  <div class="stat disaster"><b id="mE">–</b><span>ENERGY</span></div>
+  <div class="stat meteor-only"><b id="mCrater">–</b><span>CRATER</span></div>
+  <div class="stat volcano-only"><b id="vVEI">–</b><span>EXPLOSIVITY</span></div>
+  <div class="stat reactor-only"><b id="rRel">–</b><span>RELEASE</span></div>
+  <div class="stat reactor-only"><b id="rMelt">–</b><span>MELTDOWNS</span></div>
+  <div class="stat reactor-only"><b id="rDisp">0</b><span>DISPLACED</span></div>
+  <div class="stat volcano-only"><b id="vVol">–</b><span>EJECTA</span></div>
+  <div class="stat quake-only"><b id="qRupt">–</b><span>FAULT RUPTURE</span></div>
+  <div class="stat quake-only"><b id="qPeak">–</b><span>PEAK SHAKING</span></div>
+  <div class="stat disaster"><b id="mQuake">–</b><span>MAGNITUDE</span></div>
+  <div class="stat disaster hot"><b id="mDead">0</b><span>DEATHS</span></div>
+  <div class="stat disaster"><b id="mAlive">8.10B</b><span>ALIVE</span></div>
+  <div class="stat disaster"><b id="mWave">–</b><span>MAX COASTAL WAVE</span></div>
+  <div class="stat disaster"><b id="mSun">100%</b><span>SUNLIGHT</span></div>
+  <div class="stat disaster"><b id="mTemp">0 °C</b><span>GLOBAL TEMP Δ</span></div>
+  <div class="stat disaster"><b id="mColl">0</b><span>REGIONS COLLAPSED</span></div>
+  <div class="stat disaster"><b id="mDis">0</b><span>EPIDEMICS</span></div>
+  <div class="stat plague-only"><b id="sDay">0</b><span>DAY</span></div>
+  <div class="stat plague-only hot"><b id="sAct">0</b><span>INFECTED NOW</span></div>
+  <div class="stat plague-only"><b id="sCum">0</b><span>TOTAL INFECTED</span></div>
+  <div class="stat plague-only hot"><b id="sDead">0</b><span>DEATHS</span></div>
+  <div class="stat plague-only"><b id="sCty">0</b><span>COUNTRIES</span></div>
+  <div class="stat plague-only"><b id="sAlive">8.10B</b><span>ALIVE</span></div>
+  <div class="stat plague-only" title="Map regions whose hospitals are over capacity right now (out of all regions). Ever-overwhelmed count in brackets."><b id="sHosp">0</b><span>REGIONS · HOSPITALS FULL</span></div>
+  <div class="stat plague-only"><b id="sProto" style="color:#19e6c1">NONE</b><span>WHO STATUS</span></div>
+</div>
+
+<div id="panel" class="box">
+  <h1>APOCALYPSE<i>//</i>SIM</h1>
+  <label>THREAT</label>
+  <div id="threats">
+    <button id="tPlague" class="on">☣ PLAGUE</button>
+    <button id="tMeteor">☄ METEOR</button>
+    <button id="tReactor">☢ REACTOR MELTDOWN</button>
+    <button disabled title="Coming next">🌾 CROP FAILURE</button>
+    <button disabled title="Coming next">❄ ICE CAPS MELT</button>
+    <button id="tVolcano">🌋 SUPERVOLCANO</button>
+    <button id="tQuake">🌐 SUPER QUAKE</button>
+    <button id="tZombie">🧟 ZOMBIES</button>
+    <button disabled title="Coming next">💻 FIRE SALE</button>
+  </div>
+  <div class="plague-only">
+  <label for="pathogen">PATHOGEN</label>
+  <select id="pathogen"></select>
+  <div id="pinfo"></div>
+  <label for="origin">PATIENT ZERO (or click a node)</label>
+  <select id="origin"></select>
+  <label for="protocol">QUARANTINE PROTOCOLS (WHO IHR 2005)</label>
+  <select id="protocol">
+    <option value="late">Historical response (too late)</option>
+    <option value="none">No protocols</option>
+    <option value="fast">Ideal response (fast)</option>
+  </select>
+  <label title="Riots and government collapse rolled daily, weighted by the Fragile States Index and local death toll"><input id="chaos" type="checkbox" checked> SOCIETAL COLLAPSE (RANDOM, FSI-WEIGHTED)</label>
+  <div class="row"><button id="go">▶ RELEASE</button><button id="reset">↺ RESET</button></div>
+  </div>
+  <div class="meteor-only">
+  <label for="msize">IMPACTOR SIZE (stony asteroid, 20 km/s)</label>
+  <select id="msize"></select>
+  <div id="minfo"></div>
+  <label for="mtarget">IMPACT SITE (or click the globe)</label>
+  <select id="mtarget"></select>
+  <label for="mwarn">EARLY WARNING</label>
+  <select id="mwarn">
+    <option value="nasa">Realistic (NASA detection odds)</option>
+    <option value="0">None — never seen coming</option>
+    <option value="24">24 hours</option>
+    <option value="168">7 days</option>
+    <option value="4380">6 months</option>
+    <option value="87600">10 years (deflection attempt)</option>
+  </select>
+  </div>
+  <div class="quake-only">
+  <label for="qmag">MAGNITUDE</label>
+  <select id="qmag"></select>
+  <label for="qfault">FAULT</label>
+  <select id="qfault"></select>
+  <div id="qinfo"></div>
+  </div>
+  <div class="zombie-only">
+  <label for="ztype">ZOMBIE TYPE</label>
+  <select id="ztype"></select>
+  <div id="zinfo"></div>
+  <label for="zorigin">PATIENT ZERO (or click a node)</label>
+  <select id="zorigin"></select>
+  <label><input id="zchaos" type="checkbox" checked> SOCIETAL COLLAPSE (RANDOM, FSI-WEIGHTED)</label>
+  <label><input id="zwinter" type="checkbox" checked> ZOMBIES FREEZE IN WINTER (above 45°)</label>
+  <div class="row"><button id="zgo">🧟 UNLEASH</button><button id="zreset">↺ RESET</button></div>
+  </div>
+  <div class="reactor-only">
+  <label for="rtarget">PLANT / SCENARIO</label>
+  <select id="rtarget"></select>
+  <label for="rines">SEVERITY (INES SCALE)</label>
+  <select id="rines"></select>
+  <div id="rinfo"></div>
+  </div>
+  <div class="volcano-only">
+  <label for="vsite">VOLCANO</label>
+  <select id="vsite"></select>
+  <label for="vvei">ERUPTION SIZE</label>
+  <select id="vvei"></select>
+  <div id="vinfo"></div>
+  </div>
+  <div class="disaster">
+  <label><input id="mchaos" type="checkbox" checked> SOCIETAL COLLAPSE (RANDOM, FSI-WEIGHTED)</label>
+  <label title="Cholera, typhoid, measles and plague among survivors: driven by damage, floods, refugee camps, famine and collapse"><input id="mdis" type="checkbox" checked> DISEASE OUTBREAKS AMONG SURVIVORS</label>
+  <div class="row"><button id="mgo">☄ IMPACT</button><button id="mreset">↺ RESET</button></div>
+  </div>
+  <label for="speed" id="spl"></label>
+  <input id="speed" type="range" min="1" max="30" value="1">
+  <label><input id="spin" type="checkbox" checked> AUTO-ROTATE</label>
+  <details id="legend" open><summary>LEGEND</summary>
+  <div class="plague-only">
+  <div><i></i>flight carrying infection</div>
+  <div><i style="border-color:#e1f0ff"></i>essential flight (cargo/medical)</div>
+  <div><i style="border-color:#ff6e28"></i>private escape flight (collapsed state)</div>
+  <div><i class="sea"></i>ship carrying infection</div>
+  <div><i style="border-top:2px dotted #b14aff"></i>refugees fleeing lockdown</div>
+  <div><i class="dot"></i>active outbreak (size = cases)</div>
+  <div><i class="dot" style="background:#b14aff;box-shadow:0 0 6px #b14aff"></i>outbreak started by refugees</div>
+  <div><i class="dot" style="background:none;border:1px dashed #19e6c1;box-shadow:none"></i>quarantine cordon</div>
+  <div><i style="border-top:2px dotted #96c83c"></i>rat reservoir (plague)</div>
+  <div><span style="color:#ff6e28;display:inline-block;width:28px">✺ ✕</span>riots · collapse of order</div>
+  </div>
+  <div class="meteor-only">
+  <div><i style="border-color:#fff3c4"></i>fireball · thermal burns</div>
+  <div><i style="border-color:#ff6e28"></i>blast wave (buildings flattened)</div>
+  <div><i style="border-color:#5ab4ff"></i>tsunami front (height · speed)</div>
+  <div><i style="border-top:2px dashed #ffb070"></i>ejecta curtain</div>
+  <div><i class="dot" style="background:#ff8c28;box-shadow:0 0 6px #ff8c28"></i>wildfire</div>
+  <div><i class="dot" style="background:#5a4a40;box-shadow:none"></i>dust · ash · soot cloud</div>
+  </div>
+  <div class="quake-only">
+  <div><i style="border-color:#ff2a6d;border-top-width:3px"></i>fault rupture</div>
+  <div><i style="border-color:#e8fffb"></i>seismic wave front</div>
+  <div><i class="dot" style="background:#7a1030;box-shadow:none"></i>shaking: violent → strong (MMI IX → VI)</div>
+  <div><i style="border-color:#5ab4ff"></i>tsunami front (height · speed)</div>
+  <div><i class="dot" style="background:#ff8c28;box-shadow:0 0 6px #ff8c28"></i>post-quake fires</div>
+  <div><span style="color:#ffe14d;display:inline-block;width:28px">☢</span>nuclear plant meltdown</div>
+  </div>
+  <div class="zombie-only">
+  <div><i style="border-top:2px dotted #78dc3c"></i>zombie horde on the move</div>
+  <div><i></i>flight carrying the bitten</div>
+  <div><i class="sea"></i>ship carrying the bitten</div>
+  <div><i style="border-top:2px dotted #b14aff"></i>refugees (some already bitten)</div>
+  <div><i class="dot" style="background:#78dc3c;box-shadow:0 0 6px #78dc3c"></i>zombies (size = number)</div>
+  <div><i class="dot" style="background:none;border:1px dashed #19e6c1;box-shadow:none"></i>army fighting back</div>
+  <div><span style="color:#78dc3c;display:inline-block;width:28px">☠</span>region fallen · <span style="color:#19e6c1">✓</span> cleared</div>
+  <div><span style="color:#ff6e28;display:inline-block;width:28px">✺ ✕</span>riots · collapse of order</div>
+  <div><span style="color:#ff6e28;display:inline-block;width:28px">✸</span>plane down — passengers turned</div>
+  </div>
+  <div class="reactor-only">
+  <div><span style="color:#78e650;display:inline-block;width:28px">☢</span>reactor melted down</div>
+  <div><i class="dot" style="background:#78e650;box-shadow:0 0 6px #78e650"></i>exclusion zone (evacuated)</div>
+  <div><i style="border-color:#78e650"></i>fallout plume · contaminated land (blows east)</div>
+  <div><i class="dot"></i>epidemic in camps · <span style="color:#ff6e28">✺ ✕</span> riots · collapse</div>
+  </div>
+  <div class="volcano-only">
+  <div><i style="border-color:#ff7828"></i>pyroclastic flow (total destruction)</div>
+  <div><i class="dot" style="background:#8a8070;box-shadow:none"></i>ashfall (depth in cm)</div>
+  <div><i style="border-color:#787068"></i>ash plume · sulfur veil (dims the sun)</div>
+  <div><i class="dot"></i>epidemic · <span style="color:#ff6e28">✺ ✕</span> riots · collapse</div>
+  </div>
+  <div class="disaster">
+  <div><i style="border-top:2px dotted #b14aff"></i>refugees (pink = carrying disease)</div>
+  <div><i class="dot"></i>epidemic among survivors</div>
+  <div><span style="color:#ff6e28;display:inline-block;width:28px">✺ ✕</span>riots · collapse of order</div>
+  </div>
+  <div style="opacity:.6">drag to rotate · scroll / pinch to zoom</div>
+  </details>
+
+</div>
+<div id="log" class="box"></div>
+<div id="tip" class="box"></div>
+<div id="banner" class="box"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script>
+// ---------- DATA ----------
+// No vaccines. cfr = untreated fatality, cfrT = with hospital care (only while beds last),
+// hosp = share of cases needing a bed, rats = Y. pestis lives on in rodents. Rough literature values.
+// burial = infections per unsafe burial · noso = extra spread inside hospitals without protective gear (× β)
+// stigma = sick hidden from authorities in low-trust states · persist = virus survives in recovered men for months
+// Ebola/Marburg r0 here is community spread only; funerals + hospitals add the rest where states are weak.
+const DISEASES=[
+ {name:'Pneumonic Plague',r0:2.2,cfr:.93,cfrT:.15,hosp:1,rats:1,noso:.15,lat:2.5,inf:2.5,mob:.2,note:'Airborne Y. pestis — the strain behind today’s headlines. Near-certain death untreated.'},
+ {name:'Bubonic Plague (Black Death)',r0:1.5,cfr:.5,cfrT:.1,hosp:1,rats:1,lat:4,inf:6,mob:.4,note:'Flea-borne. Killed ~1/3 of Europe 1347–51.'},
+ {name:'Smallpox (Variola major)',r0:5,cfr:.3,cfrT:.25,hosp:.5,noso:.3,lat:12,inf:9,mob:.3,note:'~300M dead in the 20th century alone before eradication.'},
+ {name:'1918 Spanish Flu (H1N1)',r0:2,cfr:.025,cfrT:.008,hosp:.1,lat:2,inf:4,mob:.6,note:'Infected 1/3 of humanity, killed 50M+ in two years.'},
+ {name:'Ebola (Zaire)',r0:1.3,cfr:.5,cfrT:.3,hosp:1,burial:.6,noso:.5,stigma:1,persist:1,lat:9,inf:7,mob:.2,note:'Fluid contact. Brutal but slow to travel.'},
+ {name:'Marburg',r0:1.1,cfr:.5,cfrT:.3,hosp:1,burial:.6,noso:.5,stigma:1,persist:1,lat:7,inf:7,mob:.2,note:'Ebola’s cousin. Up to 88% fatality in outbreaks.'},
+ {name:'Nipah',r0:.5,cfr:.7,cfrT:.45,hosp:1,lat:9,inf:7,mob:.2,note:'Very lethal, poor spreader — watch it burn out.'},
+ {name:'Measles (naive population)',r0:15,cfr:.01,cfrT:.002,hosp:.1,lat:10,inf:8,mob:.5,note:'Most contagious virus known.'},
+ {name:'Cholera',r0:2.5,cfr:.2,cfrT:.01,hosp:.3,burial:.2,lat:2,inf:5,mob:.4,note:'Waterborne. 7 pandemics since 1817. Rehydration makes it survivable.'},
+ {name:'COVID-19 (2020 strain)',r0:2.8,cfr:.02,cfrT:.007,hosp:.05,lat:5,inf:8,mob:.9,note:'Mild-looking carriers travel freely.'},
+];
+// [name, lat, lon, metro pop (millions), flags]  T=top-10 city  V=remote village  p=port
+const RAW=[
+ ['Jakarta',-6.2,106.85,42,'Tp'],['Dhaka',23.81,90.41,37,'T'],['Tokyo',35.68,139.69,33,'Tp'],['New Delhi',28.61,77.21,30,'T'],
+ ['Shanghai',31.23,121.47,30,'Tp'],['Guangzhou',23.13,113.26,28,'Tp'],['Cairo',30.04,31.24,26,'T'],['Manila',14.6,120.98,25,'Tp'],
+ ['Kolkata',22.57,88.36,23,'Tp'],['Seoul',37.57,126.98,22,'Tp'],
+ ['Longyearbyen, Svalbard',78.22,15.65,.0025,'V'],['Utqiaġvik, Alaska',71.29,-156.79,.0049,'V'],['Hanga Roa, Easter Island',-27.15,-109.43,.0077,'Vp'],
+ ['Tasiilaq, Greenland',65.61,-37.64,.002,'V'],['Puerto Williams, Chile',-54.93,-67.61,.0029,'Vp'],['Verkhoyansk, Siberia',67.55,133.39,.0011,'V'],
+ ['Pond Inlet, Nunavut',72.7,-77.96,.0016,'V'],['Coober Pedy, Australia',-29.01,134.75,.0018,'V'],['Hadibu, Socotra',12.65,54.02,.009,'Vp'],
+ ['Funafuti, Tuvalu',-8.52,179.2,.0066,'Vp'],
+ ['Mumbai',19.08,72.88,22,'p'],['Beijing',39.9,116.4,22,''],['Karachi',24.86,67,20,'p'],['Lagos',6.52,3.38,17,'p'],['Istanbul',41.01,28.98,16,'p'],
+ ['Moscow',55.76,37.62,13,''],['St Petersburg',59.93,30.36,5.6,'p'],['Novosibirsk',55.03,82.92,1.6,''],['Yakutsk',62.03,129.73,.36,''],['Vladivostok',43.12,131.89,.6,'p'],
+ ['London',51.51,-.13,14,'p'],['Paris',48.86,2.35,11,''],['Berlin',52.52,13.4,4.5,''],['Madrid',40.42,-3.7,6.7,''],['Rome',41.9,12.5,4.3,''],
+ ['Oslo',59.91,10.75,1.1,'p'],['Tromsø',69.65,18.96,.08,'p'],['Reykjavík',64.15,-21.94,.24,'p'],['Nuuk',64.18,-51.69,.02,'p'],
+ ['New York',40.71,-74,19,'p'],['Los Angeles',34.05,-118.24,13,'p'],['Chicago',41.88,-87.63,9.5,''],['Houston',29.76,-95.37,7,'p'],['Atlanta',33.75,-84.39,6,''],
+ ['Toronto',43.65,-79.38,6.5,''],['Seattle',47.61,-122.33,4,'p'],['Vancouver',49.28,-123.12,2.6,'p'],['Portland',45.52,-122.68,2.5,''],['San Francisco',37.77,-122.42,6.7,'p'],['Memphis',35.15,-90.05,1.3,''],['St Louis',38.63,-90.2,2.8,''],['Montreal',45.5,-73.57,4.3,'p'],['Anchorage',61.22,-149.9,.29,'p'],['Iqaluit',63.75,-68.52,.008,''],['Honolulu',21.31,-157.86,1,'p'],
+ ['Mexico City',19.43,-99.13,22,''],['Bogotá',4.71,-74.07,11,''],['Lima',-12.05,-77.04,11,'p'],['São Paulo',-23.55,-46.63,22,''],['Rio de Janeiro',-22.91,-43.17,13,'p'],
+ ['Buenos Aires',-34.6,-58.38,15,'p'],['Santiago',-33.45,-70.67,7,''],['Punta Arenas',-53.16,-70.91,.13,'p'],
+ ['Johannesburg',-26.2,28.05,10,''],['Cape Town',-33.92,18.42,4.8,'p'],['Nairobi',-1.29,36.82,5,''],['Kinshasa',-4.44,15.27,17,''],['Addis Ababa',9.03,38.74,5.5,''],
+ ['Khartoum',15.5,32.56,6,''],['Accra',5.6,-.19,2.5,'p'],['Dakar',14.72,-17.47,3.3,'p'],['Casablanca',33.57,-7.59,3.7,'p'],
+ ['Dubai',25.2,55.27,3.5,'p'],['Riyadh',24.71,46.68,7.7,''],['Tehran',35.69,51.39,9.5,''],['Baghdad',33.31,44.36,7,''],['Aden',12.79,45.03,1,'p'],
+ ['Lahore',31.55,74.34,13,''],['Chengdu',30.57,104.07,9,''],['Hong Kong',22.32,114.17,7.5,'p'],['Osaka',34.69,135.5,19,'p'],
+ ['Bangkok',13.76,100.5,11,'p'],['Singapore',1.35,103.82,6,'p'],['Ho Chi Minh City',10.82,106.63,9,'p'],['Kuala Lumpur',3.14,101.69,8,''],['Medan',3.59,98.67,4.7,'p'],['Banda Aceh',5.55,95.32,.27,'p'],['Phuket',7.88,98.39,.42,'p'],['Chennai',13.08,80.27,11,'p'],['Colombo',6.93,79.86,5.6,'p'],['Kathmandu',27.72,85.32,3,''],['Sendai',38.27,140.87,2.3,'p'],['Nagoya',35.18,136.91,9,'p'],
+ ['Sydney',-33.87,151.21,5.3,'p'],['Perth',-31.95,115.86,2.1,'p'],['Adelaide',-34.93,138.6,1.4,'p'],['Auckland',-36.85,174.76,1.7,'p'],
+ ['Suva',-18.14,178.44,.18,'p'],['Papeete',-17.54,-149.57,.14,'p'],
+];
+const WORLD=8.1e9, ER=6371, FADE=900; // ms a trail lingers after landing
+const nodes=RAW.map(([name,lat,lon,m,f],i)=>({i,name,lat,lon,ll:[lon,lat],m,top:f.includes('T'),village:f.includes('V'),port:f.includes('p')}));
+// ponytail: each city stands in for its surrounding region (metro pop scaled up to sum to world pop); real per-country nodes if accuracy matters
+const sumCity=d3.sum(nodes.filter(n=>!n.village),n=>n.m), villPop=d3.sum(nodes.filter(n=>n.village),n=>n.m*1e6);
+const K=(WORLD-villPop)/(sumCity*1e6);
+nodes.forEach(n=>n.N=n.village?n.m*1e6:n.m*1e6*K);
+const km=(a,b)=>d3.geoDistance(a.ll,b.ll)*ER;
+
+// ---------- TRAVEL NETWORK ----------
+const routes=[], seen=new Set(), cities=nodes.filter(n=>!n.village), ports=nodes.filter(n=>n.port);
+function link(a,b,mode,pax,days){
+  const k=Math.min(a.i,b.i)+'-'+Math.max(a.i,b.i)+mode;
+  if(!seen.has(k)){seen.add(k);routes.push({a,b,mode,pax,days,d:km(a,b)})}
+}
+for(const a of cities){
+  cities.filter(b=>b!==a).map(b=>({b,d:km(a,b)})).sort((x,y)=>Math.sqrt(y.b.m)/(1+y.d/3000)-Math.sqrt(x.b.m)/(1+x.d/3000))
+    .slice(0,8).forEach(({b,d})=>link(a,b,'air',8000*Math.sqrt(a.m*b.m)/30/(1+d/5000),1));
+  cities.forEach(b=>{const d=km(a,b);if(b!==a&&d<1500)link(a,b,'ground',3000*Math.sqrt(a.m*b.m)/30,1+Math.round(d/800))});
+}
+for(const a of ports) ports.filter(b=>b!==a).sort((x,y)=>km(a,x)-km(a,y)).slice(0,4)
+  .forEach(b=>link(a,b,'sea',a.village||b.village?30:150,Math.max(2,Math.round(km(a,b)/600))));
+for(const v of nodes.filter(n=>n.village)){const c=d3.least(cities,c=>km(v,c));link(v,c,'air',40,1)}
+// escape routes: once locked down, people flee overland/by small boat to the 3 nearest smaller, more remote places
+nodes.forEach(a=>{a.remote=a.village||a.m<.5;a.fleeTo=nodes.filter(b=>b.m<a.m&&km(a,b)<3500).sort((x,y)=>km(a,x)-km(a,y)).slice(0,3)});
+
+// ---------- WHO IHR (2005) PROTOCOLS ----------
+// Escalation: local detection → WHO notified → PHEIC → pandemic emergency (2024 IHR amendment).
+// Same measures in both modes; only the reaction lags differ. "Historical" lags = COVID-19 timeline.
+const PROTOS={
+  none:null,
+  late:{report:21,pheic:30,pandemic:41},
+  fast:{report:4,pheic:5,pandemic:7},
+};
+const STAGES=['NONE','UNDETECTED','WHO NOTIFIED','PHEIC','PANDEMIC EMERG.'];
+const TRAVEL=[{},{},{},{air:.6,sea:.5,ground:1},{air:.15,sea:.1,ground:.4}]; // exit screening → flights cut + 14-day ship quarantine
+let stage=0,stageAt=[];
+// isolation + contact tracing once a region detects it (-25% spread); lockdown on top in a pandemic emergency (-60% total)
+const locked=n=>stage>1&&n.det!==null&&day>=n.det&&n.collapse==null;
+function spreadMul(n){
+  if(n.collapse!=null)return 1.15; // no state: looting, crowding, unburied dead, nobody enforcing anything
+  if(!locked(n))return 1;
+  // remote places (villages, towns <500k) can barely be locked down: no police, no testing, people need to hunt and fish
+  let cut=n.remote?(stage>=4?.2:.1):(stage>=4?.6:.25);
+  if(n.unrest!=null)cut*=.5; // riots break quarantine
+  if(disease.stigma)cut*=1-.3*n.frag; // low trust: families hide the sick, treatment centres seen as death houses
+  return 1-cut;
+}
+const FLEE='177,74,255', RIOT='255,110,40', ESSENTIAL='225,240,255';
+
+// ---------- SOCIETAL COLLAPSE ----------
+// Fragile States Index 2024 (Fund for Peace), approx. totals out of 120 — higher = more fragile.
+// Drives the odds of riots → government collapse under epidemic stress, and how long a regime sits on bad news.
+const FSI={'Indonesia':66,'Bangladesh':84,'Japan':31,'India':74,'China':68,'Egypt':84,'Philippines':81,'South Korea':33,'Norway':15,
+ 'Canada':22,'Chile':43,'Greenland':25,'Russia':77,'Australia':20,'Yemen':108,'Fiji':70,'Tuvalu':60,'French Polynesia':34,'Pakistan':89,
+ 'Nigeria':98,'Turkey':79,'United Kingdom':39,'France':34,'Germany':26,'Spain':41,'Italy':44,'Iceland':17,'United States of America':47,
+ 'Mexico':69,'Colombia':77,'Peru':70,'Brazil':72,'Argentina':47,'South Africa':71,'Kenya':87,'Dem. Rep. Congo':107,'Ethiopia':99,'Sudan':109,
+ 'Ghana':63,'Senegal':71,'Morocco':68,'United Arab Emirates':41,'Saudi Arabia':64,'Iran':82,'Iraq':93,'Thailand':70,'Malaysia':56,
+ 'Vietnam':64,'New Zealand':18,'Nepal':82,'Sri Lanka':80};
+// Hospital beds per 1,000 people (WHO / World Bank, latest available, approx). Remote places get 30% of the national rate.
+const BEDS={'Indonesia':1,'Bangladesh':.8,'Japan':12.6,'India':.5,'China':4.3,'Egypt':1.4,'Philippines':1,'South Korea':12.7,'Norway':3.4,
+ 'Canada':2.5,'Chile':2,'Greenland':2.5,'Russia':7.1,'Australia':3.8,'Yemen':.7,'Fiji':2,'Tuvalu':2,'French Polynesia':3,'Pakistan':.6,
+ 'Nigeria':.5,'Turkey':2.9,'United Kingdom':2.4,'France':5.7,'Germany':7.8,'Spain':3,'Italy':3.1,'Iceland':2.8,'United States of America':2.8,
+ 'Mexico':1,'Colombia':1.7,'Peru':1.6,'Brazil':2.1,'Argentina':5,'South Africa':2.3,'Kenya':1.4,'Dem. Rep. Congo':.8,'Ethiopia':.3,'Sudan':.7,
+ 'Ghana':.9,'Senegal':.3,'Morocco':1,'United Arab Emirates':1.4,'Saudi Arabia':2.2,'Iran':1.6,'Iraq':1.3,'Thailand':2.1,'Malaysia':1.9,
+ 'Vietnam':2.6,'New Zealand':2.6,'Nepal':.3,'Sri Lanka':4.2};
+const RAT='150,200,60';
+function chaos(){
+  if(!$('chaos').checked)return;
+  for(const n of nodes){
+    if(n.collapse!=null||n.E+n.I<1)continue;
+    // riots need fear (cases + deaths); collapse needs bodies (deaths only)
+    const dead=n.D/n.N, stress=Math.min(1,30*dead+2*(n.E+n.I)/n.N), f2=n.frag*n.frag;
+    if(n.unrest==null){if(Math.random()<.05*f2*stress){n.unrest=day;log(`<span style="color:rgb(${RIOT})">⚠ RIOTS in ${n.name} — quarantine breaking down (FSI ${n.fsi})</span>`)}}
+    else if(Math.random()<.02*f2*Math.min(1,20*dead)){n.collapse=day;log(`<span style="color:rgb(${RIOT})"><b>☠ ORDER COLLAPSES in ${n.name}</b> (${n.country}): no rule of law, borders unguarded, mass exodus</span>`)}
+  }
+}
+
+// ---------- STATE ----------
+let mode='plague', disease=DISEASES[0], origin=null, day=0, acc=0, quiet=0, running=false, started=false, trips=[], countries=[], marks;
+const $=id=>document.getElementById(id);
+const fmt=n=>n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e6?(n/1e6).toFixed(2)+'M':Math.round(n).toLocaleString();
+
+function log(html){const el=document.createElement('div');el.innerHTML=`<b>${disaster()?meteorStamp():'D'+day}</b> ${html}`;$('log').prepend(el);while($('log').children.length>60)$('log').lastChild.remove()}
+
+function reset(){
+  nodes.forEach(n=>{n.S=n.N;n.E=n.I=n.R=n.D=n.cum=n.rat=n.hcw=n.Rp=0;n.treat=1;n.full=n.staffLog=n.wasFull=false;n.ratLog=n.flareLog=-999;n.hit=n.det=n.unrest=n.collapse=null});
+  stage=PROTOS[$('protocol').value]?1:0;stageAt=[];
+  day=0;acc=0;quiet=0;running=false;started=false;trips=[];marks={d:[1e3,1e6,1e7,1e8,5e8,1e9,2e9,4e9],c:[1e4,1e6,1e8,1e9]};
+  $('log').innerHTML='';$('banner').style.display='none';
+  $('go').textContent='▶ RELEASE';$('pathogen').disabled=$('origin').disabled=$('protocol').disabled=$('chaos').disabled=false;
+  updateCountries();hud();
+}
+function seed(n,k,via,from){
+  const x=Math.min(k,n.S);if(x<=0)return;
+  n.S-=x;n.E+=x;n.cum+=x;
+  if(n.hit===null){n.hit=day;n.via=via;
+    if(via==='rat')log(`<span style="color:rgb(${RAT})">🐀 Ship rats bring plague ashore in ${n.name}</span>`);
+    else if(from)log(via==='flee'?`<span style="color:rgb(${FLEE})">🏃 refugees ${from.name} → ${n.name}</span>`
+      :via==='essential'?`<span style="color:rgb(${ESSENTIAL})">✈ essential flight (cargo/medical) ${from.name} → ${n.name}</span>`
+      :via==='escape'?`<span style="color:rgb(${RIOT})">🛩 private escape flight ${from.name} → ${n.name}</span>`
+      :`${{air:'✈',sea:'⚓',ground:'▲'}[via]} ${from.name} → <span style="color:#fff">${n.name}</span>`+(via==='ground'?' (overland)':''));
+  }
+}
+
+function protocols(){
+  const P=PROTOS[$('protocol').value];if(!P)return;
+  // 50 cases before anyone notices, then reporting lag; fragile/opaque states sit on it longer (up to 2x) when collapse is on
+  for(const n of nodes)if(n.det===null&&n.cum>=50)n.det=day+Math.round(P.report*($('chaos').checked?1+n.frag:1));
+  const first=d3.min(nodes,n=>n.det),go=(s,msg)=>{stage=s;stageAt[s]=day;log(`<span style="color:#19e6c1">⚕ ${msg}</span>`)};
+  if(stage===1&&first!=null&&day>=first)go(2,`WHO NOTIFIED — first case was day ${d3.min(nodes,n=>n.hit)}, ${day} days ago. Local isolation begins.`);
+  else if(stage===2&&day>=stageAt[2]+P.pheic)go(3,'PHEIC DECLARED — exit screening, travel advisories. Flights −40%.');
+  else if(stage===3&&day>=stageAt[3]+P.pandemic)go(4,'PANDEMIC EMERGENCY — lockdowns, flights −85%, 14-day ship quarantine.');
+}
+
+function step(){
+  const d=disease, beta=d.r0/d.inf, sig=1/d.lat, gam=1/d.inf, h=.25;
+  protocols();chaos();
+  // rat reservoir (plague only): sick humans infect rats, infested rats keep spilling back into people — lockdowns can't stop rats
+  if(d.rats)for(const n of nodes){
+    n.rat=Math.min(1,n.rat*.995+2*n.I/n.N);
+    if(n.rat<.005){n.rat=0;continue}
+    const lam=2e-7*n.rat*n.S;
+    if(Math.random()<1-Math.exp(-lam)){
+      if(n.E+n.I<1&&n.cum>=50&&n.m>=5&&day-n.ratLog>180){n.ratLog=day;log(`<span style="color:rgb(${RAT})">🐀 Plague returns to ${n.name} — infected rats</span>`)}
+      seed(n,Math.max(1,Math.round(lam)),'rat');
+    }
+  }
+  // survivor flare-ups: rare sexual transmission months after recovery (~1 per 100k survivor-days)
+  if(d.persist)for(const n of nodes){
+    if(n.Rp<1)continue;
+    n.Rp*=1-1/90;
+    if(Math.random()<1-Math.exp(-1e-5*n.Rp*n.S/n.N)){
+      if(n.E+n.I<1&&day-n.flareLog>60){n.flareLog=day;log(`<span style="color:#fff">🧬 New ${d.name.split(' ')[0]} cluster in ${n.name} — traced to a survivor</span>`)}
+      seed(n,1,'survivor');
+    }
+  }
+  for(const n of nodes){
+    if(n.E+n.I<=0)continue;
+    const b=beta*spreadMul(n);
+    // hospital overload: treated fatality only while beds last; collapsed states have no hospitals; sick/dead staff shrink capacity
+    const pool=n.N*n.beds/500, staff=Math.max(.1,1-n.hcw/pool); // ~2 health workers per bed
+    const cap=n.collapse!=null?0:n.N*n.beds/2000*staff, need=n.I*d.hosp;
+    n.treat=need<=cap?1:cap/need;if(n.treat<.9)n.wasFull=true;
+    const cf=d.cfrT*n.treat+d.cfr*(1-n.treat);
+    if(n.treat<.9&&!n.full&&n.m>=3){n.full=true;log(`<span style="color:#fff">🏥 Hospitals overwhelmed in ${n.name}</span> (${BEDS[n.country]??2} beds/1000)`)}
+    if(staff<.5&&!n.staffLog&&n.m>=3){n.staffLog=true;log(`<span style="color:#fff">🩺 ${n.name} has lost half its health workers</span>`)}
+    // before detection nobody wears protective gear; after, isolation wards close most of the gap — less so in fragile states
+    const ppeGap=n.det!==null&&day>=n.det?.3*n.frag:1, noso=(d.noso||0)*ppeGap*beta*Math.min(need,cap)/n.N;
+    // unsafe burials: touching/washing the body. Safe-burial teams only once the outbreak is known, and fragile states resist them
+    const unsafe=n.collapse!=null||!locked(n)?1:.1+.4*n.frag;
+    for(let s=0;s<4;s++){
+      const out=gam*n.I*h, dead=out*cf, inc=sig*n.E*h;
+      const nosoInf=noso*n.S*h, inf=Math.min(n.S,b*n.S*n.I/n.N*h+nosoInf+(d.burial||0)*unsafe*dead*n.S/n.N);
+      n.S-=inf;n.E+=inf-inc;n.I+=inc-out;n.D+=dead;n.R+=out-dead;n.cum+=inf;
+      n.hcw+=.3*nosoInf; // ~30% of hospital infections are staff
+      if(d.persist)n.Rp+=(out-dead)*.5; // male survivors can carry virus in semen
+    }
+    if(n.E+n.I<.5){n.R+=n.E+n.I;n.E=n.I=0} // local chain dies out
+  }
+  for(const r of routes)for(const [a,b] of [[r.a,r.b],[r.b,r.a]]){
+    if(a.E+a.I<1||b.S<1)continue;
+    // collapsed states: airlines are gone (no fuel, ATC, crews) — only private escape flights (~10%); boats and roads are unpoliced (100%)
+    // pandemic emergency elsewhere: the 15% of flights still running are essential cargo/medical/repatriation
+    const col=a.collapse!=null, kind=r.mode!=='air'?r.mode:col?'escape':stage>=4?'essential':'air';
+    const lam=r.pax*(col?(r.mode==='air'?.1:1):TRAVEL[stage][r.mode]??1)*(a.E+d.mob*a.I)/a.N;
+    if(Math.random()<1-Math.exp(-lam))
+      // ponytail: animation runs on real time (≥1s per trip) so it's watchable at any speed; at high speeds the city may light up before the dot lands
+      trips.push({a,b,mode:r.mode,kind,d:r.d,t1:day+r.days,k:Math.max(1,Math.round(lam)),rt0:performance.now(),dur:Math.max(1000,r.days/+$('speed').value*1000),
+        show:r.mode!=='ground'&&(b.E+b.I<100||Math.random()<.03),ip:d3.geoInterpolate(a.ll,b.ll)});
+  }
+  // panic migration out of locked-down, rioting or collapsed places; ignores travel bans, grows with the death toll
+  for(const a of nodes){
+    if(a.E+a.I<1||!(stage>=4&&locked(a))&&a.unrest==null&&a.collapse==null)continue;
+    const flee=400*Math.sqrt(a.m)*(1+50*a.D/a.N)*(a.collapse!=null?6:a.unrest!=null?3:1);
+    for(const b of a.fleeTo){
+      if(b.S<1)continue;
+      const lam=flee/a.fleeTo.length*(a.E+.3*a.I)/a.N, d=km(a,b), days=2+Math.round(d/300);
+      if(Math.random()<1-Math.exp(-lam))
+        trips.push({a,b,mode:'flee',d,t1:day+days,k:Math.max(1,Math.round(lam)),rt0:performance.now(),dur:Math.max(1500,days/+$('speed').value*1000),
+          show:b.E+b.I<100||Math.random()<.1,ip:d3.geoInterpolate(a.ll,b.ll)});
+    }
+  }
+  day++;
+  for(const t of trips)if(!t.done&&t.t1<=day){t.done=true;seed(t.b,t.k,t.kind||t.mode,t.a);if(d.rats&&t.mode==='sea')t.b.rat=Math.max(t.b.rat,.05)} // ship rats jump ashore
+  trips=trips.filter(t=>!t.done||(t.show&&performance.now()-t.rt0<t.dur+FADE));
+  const tot=totals();
+  while(marks.d.length&&tot.D>=marks.d[0])log(`<b>☠ ${fmt(marks.d.shift())} DEAD</b>`);
+  while(marks.c.length&&tot.cum>=marks.c[0])log(`☣ ${fmt(marks.c.shift())} people infected`);
+  updateCountries();
+  // WHO rule: outbreak declared over after 42 days (2× max incubation) with no cases; survivor flare-ups reset the clock
+  quiet=tot.act<.5&&!trips.some(t=>!t.done)?quiet+1:0;
+  if(quiet>=42&&!nodes.some(n=>n.rat>0))end(`OUTBREAK DECLARED OVER · DAY ${day}<br><small>42 days without a case · ${fmt(tot.D)} DEAD</small>`);
+  else if(day>=1095)end(`3 YEARS ELAPSED<br><small>${fmt(tot.D)} DEAD</small>`);
+}
+function end(msg){running=false;$('go').textContent='▶ RELEASE';$('go').disabled=true;$('banner').innerHTML=msg;$('banner').style.display='block';log(msg.replace('<br>',' — '))}
+function totals(){let act=0,cum=0,D=0;for(const n of nodes){act+=n.E+n.I;cum+=n.cum;D+=n.D}return{act,cum,D}}
+function updateCountries(){for(const c of countries)c.attack=c.nodes.length?d3.sum(c.nodes,n=>n.cum)/d3.sum(c.nodes,n=>n.N):0}
+function hud(){
+  const t=totals();
+  $('sDay').textContent=day;$('sAct').textContent=fmt(t.act);$('sCum').textContent=fmt(t.cum);
+  $('sDead').textContent=fmt(t.D);$('sAlive').textContent=fmt(WORLD-t.D);
+  $('sProto').textContent=STAGES[stage];
+  $('sHosp').textContent=`${nodes.filter(n=>n.I>=1&&n.treat<.9).length}/${nodes.length} (${nodes.filter(n=>n.wasFull).length})`;
+  $('sCty').textContent=new Set(nodes.filter(n=>n.hit!==null).map(n=>n.country)).size;
+}
+
+// ---------- UI ----------
+DISEASES.forEach((d,i)=>$('pathogen').add(new Option(d.name,i)));
+const showInfo=()=>{const d=disease;$('pinfo').innerHTML=`R₀ <em>${d.r0}</em> · FATALITY <em>${Math.round(d.cfr*100)}%</em> untreated / <em>${+(d.cfrT*100).toFixed(1)}%</em> in hospital · INCUBATION <em>${d.lat}d</em><br>${d.note}`+(d.rats?'<br><em>🐀 Rodent reservoir</em> — lockdowns can\'t stop rats':'')
+  +[d.burial&&'⚰ funerals',d.noso&&'🏥 hospital spread',d.stigma&&'🙈 sick hidden',d.persist&&'🧬 survivors stay infectious'].filter(Boolean).map(t=>`<br><em>${t}</em>`).join('')};
+$('pathogen').onchange=e=>{disease=DISEASES[e.target.value];showInfo()};
+for(const [label,f] of [['10 MOST POPULOUS CITIES','top'],['10 MOST REMOTE VILLAGES (1K+)','village']]){
+  const g=document.createElement('optgroup');g.label=label;
+  nodes.filter(n=>n[f]).forEach(n=>g.append(new Option(n.name,n.i)));$('origin').append(g);
+}
+function setOrigin(n){origin=n;$('origin').value=n.i;flyTo=[-n.lon,-n.lat]}
+$('origin').onchange=e=>setOrigin(nodes[e.target.value]);
+$('protocol').onchange=()=>{stage=PROTOS[$('protocol').value]?1:0;hud()};
+$('go').onclick=()=>{
+  if(!started){started=true;$('pathogen').disabled=$('origin').disabled=$('protocol').disabled=$('chaos').disabled=true;seed(origin,1);
+    log(`<b>☣ ${disease.name}</b> released in <span style="color:#fff">${origin.name}</span>`)}
+  running=!running;$('go').textContent=running?'❚❚ PAUSE':'▶ RESUME';
+};
+$('reset').onclick=()=>{$('go').disabled=false;reset()};
+const disaster=()=>mode==='meteor'||mode==='quake'||mode==='volcano'||mode==='reactor';
+const spv=()=>$('spl').textContent=disaster()?`TIME WARP: ×${$('speed').value}`:`TIMELAPSE: ${$('speed').value} DAYS / SEC`;$('speed').oninput=spv;spv();
+
+// ---------- GLOBE ----------
+const cv=$('globe'),ctx=cv.getContext('2d');
+const proj=d3.geoOrthographic().clipAngle(90).precision(.4),path=d3.geoPath(proj,ctx),grat=d3.geoGraticule10();
+let W,H,rot=[-100,-30],zoom=1,dragging=false,flyTo=null,land,borders,hover=null;
+function resize(){const r=devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*r;cv.height=H*r;ctx.setTransform(r,0,0,r,0,0)}
+addEventListener('resize',resize);resize();
+
+let prevT;
+d3.select(cv).call(d3.zoom().scaleExtent([.6,10])
+  .on('start',e=>{prevT=e.transform;dragging=true;flyTo=null})
+  .on('zoom',e=>{const t=e.transform;
+    if(t.k===prevT.k){const k=70/proj.scale();rot[0]+=(t.x-prevT.x)*k;rot[1]=Math.max(-90,Math.min(90,rot[1]-(t.y-prevT.y)*k))}
+    zoom=t.k;prevT=t})
+  .on('end',()=>dragging=false));
+
+const front=ll=>d3.geoDistance(ll,[-rot[0],-rot[1]])<1.55;
+cv.addEventListener('pointermove',e=>{
+  hover=null;let best=14;
+  for(const n of nodes){if(!front(n.ll))continue;const [x,y]=proj(n.ll),d=Math.hypot(x-e.clientX,y-e.clientY);if(d<best){best=d;hover=n}}
+  const tip=$('tip');
+  if(!hover){tip.style.display='none';return}
+  const n=hover;tip.style.display='block';tip.style.left=Math.min(e.clientX+14,W-220)+'px';tip.style.top=e.clientY+14+'px';
+  if(mode==='zombie'){tip.innerHTML=zombieTip(n);return}
+  if(disaster()){tip.innerHTML=meteorTip(n);return}
+  tip.innerHTML=`<b>${n.name}</b><br>${n.village?'village':'region'} pop ${fmt(n.N)}<br>infected now ${fmt(n.E+n.I)}<br>deaths ${fmt(n.D)}`+
+    (n.hit!==null?`<br>first case day ${n.hit}`:'')+(locked(n)?`<br><span style="color:#19e6c1">${stage>=4?'LOCKDOWN':'isolation'} since day ${n.det}</span>`:'')+
+    (n.collapse!=null?`<br><span style="color:#ff6e28">ORDER COLLAPSED day ${n.collapse}</span>`:n.unrest!=null?`<br><span style="color:#ff6e28">RIOTS since day ${n.unrest}</span>`:'')+
+    (n.I>=1?`<br>hospitals ${Math.round(n.I*disease.hosp/Math.max(1,n.N*n.beds/2000)*100)}% of capacity`:'')+
+    (n.rat>0?`<br><span style="color:rgb(${RAT})">rats ${Math.round(n.rat*100)}% infested</span>`:'')+
+    (n.hcw>=1?`<br>health workers lost ${Math.min(100,Math.round(n.hcw/(n.N*n.beds/500)*100))}%`:'')+
+    (n.Rp>=1?`<br>survivors still carrying virus ${fmt(n.Rp)}`:'')+
+    `<br><span style="opacity:.6">${n.country} · fragility ${n.fsi}/120 · ${n.beds.toFixed(1)} beds/1000</span>`+(!started?'<br><span style="color:#ff2a6d">click to set patient zero</span>':'');
+});
+cv.addEventListener('click',e=>{if(mode==='zombie')return zombieClick();if(disaster())return meteorClick(e);if(hover&&!started)setOrigin(hover)});
+function setMode(m){
+  mode=m;document.body.dataset.mode=m;$('tPlague').classList.toggle('on',m==='plague');$('tMeteor').classList.toggle('on',m==='meteor');$('tQuake').classList.toggle('on',m==='quake');$('tZombie').classList.toggle('on',m==='zombie');$('tVolcano').classList.toggle('on',m==='volcano');$('tReactor').classList.toggle('on',m==='reactor');
+  $('go').disabled=false;reset();meteorReset();spv();if(m==='plague')setOrigin(origin);if(m==='meteor')pickTarget();if(m==='quake')quakePick();if(m==='zombie')zombieReset();if(m==='volcano')volcanoReset();if(m==='reactor')reactorReset();
+}
+$('tPlague').onclick=()=>setMode('plague');$('tMeteor').onclick=()=>setMode('meteor');$('tQuake').onclick=()=>setMode('quake');$('tZombie').onclick=()=>setMode('zombie');$('tVolcano').onclick=()=>setMode('volcano');$('tReactor').onclick=()=>setMode('reactor');
+
+function draw(tNow){
+  const c=[W/2,H/2],R=Math.min(W,H)*.42*zoom;
+  proj.translate(c).scale(R).rotate(rot);
+  ctx.clearRect(0,0,W,H);
+  // ocean sphere
+  const g=ctx.createRadialGradient(c[0]-R*.3,c[1]-R*.3,R*.1,c[0],c[1],R);
+  g.addColorStop(0,'#08161a');g.addColorStop(1,'#020507');
+  ctx.beginPath();path({type:'Sphere'});ctx.fillStyle=g;ctx.fill();
+  ctx.lineWidth=8;ctx.strokeStyle='rgba(25,230,193,.05)';ctx.stroke();
+  ctx.lineWidth=1;ctx.strokeStyle='rgba(25,230,193,.35)';ctx.stroke();
+  ctx.beginPath();path(grat);ctx.lineWidth=.5;ctx.strokeStyle='rgba(25,230,193,.07)';ctx.stroke();
+  // infected countries
+  for(const co of countries)if(co.attack>0){
+    ctx.beginPath();path(co);ctx.fillStyle=`rgba(255,42,109,${.07+.4*Math.sqrt(co.attack)})`;ctx.fill();
+  }
+  // coastlines (two-pass glow) + borders
+  ctx.beginPath();path(land);ctx.lineWidth=4;ctx.strokeStyle='rgba(25,230,193,.07)';ctx.stroke();
+  ctx.lineWidth=1;ctx.strokeStyle='rgba(25,230,193,.55)';ctx.stroke();
+  ctx.beginPath();path(borders);ctx.lineWidth=.5;ctx.strokeStyle='rgba(25,230,193,.18)';ctx.stroke();
+  if(mode==='zombie')return zombieDraw(c);
+  if(disaster())return meteorDraw(c);
+  // nodes
+  for(const n of nodes){
+    if(!front(n.ll))continue;
+    const [x,y]=proj(n.ll),act=n.E+n.I;
+    if(act>=1){
+      const r=2+2.2*Math.log10(1+act),oc=n.via==='flee'?FLEE:'255,42,109'; // outbreaks started by refugees glow violet
+      ctx.beginPath();ctx.arc(x,y,r*1.8,0,7);ctx.fillStyle=`rgba(${oc},.12)`;ctx.fill();
+      ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=`rgba(${oc},.55)`;ctx.fill();
+      if(n.hit!==null&&tNow-n.hit<6){ctx.beginPath();ctx.arc(x,y,r+(tNow-n.hit)*5,0,7);ctx.strokeStyle=`rgba(${oc},${1-(tNow-n.hit)/6})`;ctx.stroke()}
+    }
+    if(locked(n)&&act>=1){ // quarantine cordon
+      const r=6+2.2*Math.log10(1+act);
+      ctx.setLineDash([3,3]);ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.lineWidth=1.2;ctx.strokeStyle='rgba(25,230,193,.8)';ctx.stroke();ctx.setLineDash([]);
+    }
+    if(n.rat>.01){ // rat reservoir: sickly green speckled ring
+      ctx.setLineDash([1,2]);ctx.beginPath();ctx.arc(x,y,4+10*n.rat,0,7);ctx.lineWidth=2;ctx.strokeStyle=`rgba(${RAT},${.3+.6*n.rat})`;ctx.stroke();ctx.setLineDash([]);
+    }
+    if(n.unrest!=null){ // riots: flickering jagged ring; collapse: solid ring + cross
+      const r=9+2.2*Math.log10(1+act),fl=.5+.5*Math.random();
+      ctx.beginPath();for(let k=0;k<=16;k++){const a=k/16*Math.PI*2,rr=r+(k%2?3:0)*fl;ctx.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}
+      ctx.lineWidth=1.3;ctx.strokeStyle=`rgba(${RIOT},${n.collapse!=null?.95:.5+.4*fl})`;ctx.stroke();
+      if(n.collapse!=null){ctx.beginPath();ctx.moveTo(x-5,y-5);ctx.lineTo(x+5,y+5);ctx.moveTo(x+5,y-5);ctx.lineTo(x-5,y+5);ctx.lineWidth=2;ctx.stroke()}
+    }
+    const dead=n.D/n.N;
+    ctx.fillStyle=dead>.05?'#7a1030':n.village?'#f5b700':'#19e6c1';
+    n.village?ctx.fillRect(x-2,y-2,4,4):(ctx.beginPath(),ctx.arc(x,y,1.6,0,7),ctx.fill());
+    if(n===origin||n===hover||(act>1e6&&zoom>1.4)||(zoom>2.5&&!started)){
+      ctx.font='11px "Share Tech Mono"';ctx.fillStyle=n===origin?'#ff2a6d':'rgba(200,255,245,.8)';ctx.fillText(n.name.split(',')[0],x+6,y-5);
+    }
+  }
+  // travel arcs
+  for(const t of trips){
+    if(!t.show)continue;
+    const el=performance.now()-t.rt0,p=Math.min(1,el/t.dur),fade=el>t.dur?Math.max(0,1-(el-t.dur)/FADE):1;
+    if(p<=0||!fade)continue;
+    const lift=t.mode==='air'?.2*Math.min(1,t.d/6000):0,N=Math.max(8,Math.round(t.d/250));
+    ctx.beginPath();let pen=false,head=null;
+    for(let s=0;s<=N;s++){
+      const u=p*s/N,ll=t.ip(u);
+      if(!front(ll)){pen=false;continue}
+      let [x,y]=proj(ll);const m=1+lift*Math.sin(Math.PI*u);x=c[0]+(x-c[0])*m;y=c[1]+(y-c[1])*m;
+      pen?ctx.lineTo(x,y):ctx.moveTo(x,y);pen=true;head=s===N?[x,y]:null;
+    }
+    const col={sea:'245,183,0',flee:FLEE,essential:ESSENTIAL,escape:RIOT}[t.kind||t.mode]||'255,42,109';
+    ctx.setLineDash({sea:[4,4],flee:[1,3]}[t.mode]||[]);ctx.lineWidth=1.3;ctx.strokeStyle=`rgba(${col},${.75*fade})`;ctx.stroke();ctx.setLineDash([]);
+    if(!head)continue;
+    if(p<1){ // carrier: glowing halo + bright core riding the front of the line
+      ctx.beginPath();ctx.arc(head[0],head[1],9,0,7);ctx.fillStyle=`rgba(${col},.25)`;ctx.fill();
+      ctx.beginPath();ctx.arc(head[0],head[1],4.5,0,7);ctx.fillStyle='#fff';ctx.shadowColor=`rgb(${col})`;ctx.shadowBlur=14;ctx.fill();ctx.shadowBlur=0;
+    }else{ // touchdown ripple
+      ctx.beginPath();ctx.arc(head[0],head[1],4+(1-fade)*18,0,7);ctx.strokeStyle=`rgba(${col},${fade})`;ctx.lineWidth=1.5;ctx.stroke();
+    }
+  }
+}
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.1,(now-last)/1000);last=now;
+  if(mode==='zombie')zombieTick(dt);
+  else if(disaster())meteorTick(dt);
+  else if(running){acc+=dt*+$('speed').value;while(acc>=1&&running){step();acc-=1}hud()}
+  if(flyTo){const dx=((flyTo[0]-rot[0]+540)%360)-180,dy=flyTo[1]-rot[1];rot[0]+=dx*.08;rot[1]+=dy*.08;if(Math.abs(dx)+Math.abs(dy)<.2)flyTo=null}
+  else if($('spin').checked&&!dragging)rot[0]+=dt*4;
+  draw(day+acc);
+  requestAnimationFrame(frame);
+}
+
+d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world=>{
+  land=topojson.feature(world,world.objects.land);
+  borders=topojson.mesh(world,world.objects.countries,(a,b)=>a!==b);
+  countries=topojson.feature(world,world.objects.countries).features;
+  countries.forEach(c=>{c.nodes=[];c.cen=d3.geoCentroid(c)});
+  const FIX={'Utqiaġvik, Alaska':'United States of America','Pond Inlet, Nunavut':'Canada','Istanbul':'Turkey','Funafuti, Tuvalu':'Tuvalu','Papeete':'French Polynesia'};
+  for(const n of nodes){ // override, else point-in-polygon, else nearest country (small islands aren't in the 110m map)
+    const c=countries.find(c=>c.properties.name===FIX[n.name])||countries.find(c=>d3.geoContains(c,n.ll))||d3.least(countries,c=>d3.geoDistance(c.cen,n.ll));
+    c.nodes.push(n);n.country=FIX[n.name]||c.properties.name;
+    n.fsi=FSI[n.country]??60;n.beds=(BEDS[n.country]??2)*(n.remote?.3:1);n.frag=Math.max(0,Math.min(1,(n.fsi-15)/100));
+  }
+  showInfo();reset();typeof meteorInit==='function'&&meteorInit();typeof zombieInit==='function'&&zombieInit();typeof volcanoInit==='function'&&volcanoInit();typeof reactorInit==='function'&&reactorInit();setOrigin(nodes.find(n=>n.name.startsWith('Verkhoyansk')));
+  requestAnimationFrame(frame);
+}).catch(e=>{$('log').textContent='Failed to load world map: '+e.message});
+</script>
+<script src="meteor.js"></script>
+<script src="quake.js"></script>
+<script src="zombie.js"></script>
+<script src="volcano.js"></script>
+<script src="reactor.js"></script>
+</body>
+</html>
