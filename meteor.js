@@ -323,9 +323,6 @@ function meteorHud(){
   $('mT').textContent=on?tfmt(M.t):M.state==='warning'?'T−'+wfmt(M.warnH*(1-M.wu)**2):M.state==='incoming'?'INCOMING':M.state==='miss'?'MISSED':'T+0';
   $('mColl').textContent=`${nodes.filter(n=>n.mC!=null).length}/${nodes.length}`;
   $('mDis').textContent=on?`${nodes.filter(n=>n.mDis&&M.t-n.mDis.t0<n.mDis.dur).length} (${nodes.filter(n=>n.mDis).length})`:'0';
-  if(M.kind==='quake')quakeHud();
-  if(M.kind==='volcano')volcanoHud();
-  if(M.kind==='reactor')reactorHud();
   $('mE').textContent=P?mtfmt(P.Mt):'–';
   $('mCrater').textContent=!P||M.kind==='quake'?'–':P.crater?(P.crater<1?(P.crater*1000).toFixed(0)+' m':P.crater.toFixed(0)+' km'):M.size.air?'airburst':'none';
   $('mQuake').textContent=P&&(P.crater||M.kind==='quake')?'M'+P.quake.toFixed(1):'–';
@@ -333,6 +330,9 @@ function meteorHud(){
   $('mWave').textContent=M.maxWave?M.maxWave.toFixed(M.maxWave<10?1:0)+' m':'–';
   $('mSun').textContent=Math.round(100-M.dim*env*100)+'%';
   $('mTemp').textContent=typeof M.dT==='number'?(M.dT*env).toFixed(1)+' °C':env>.5?M.dT+' °C':'0 °C';
+  if(M.kind==='quake')quakeHud();
+  if(M.kind==='volcano')volcanoHud();
+  if(M.kind==='reactor')reactorHud();
 }
 function meteorTip(n){
   if(M.kind==='volcano')return volcanoTip(n);

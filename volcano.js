@@ -96,9 +96,9 @@ function volcanoTick(){
   once('cool',M.dim>=.03&&M.t>720,typeof M.dT==='number'&&M.dT<=-1?`❄ Volcanic winter: global temperature ${M.dT} °C — summer frosts, failed harvests`:'🌫 A sulfur haze dims the sun worldwide');
 }
 function volcanoHud(){
-  $('mE').textContent=M.vei?'VEI '+M.vei:'–';
-  $('mCrater').textContent=M.state==='impact'?fmt(M.vol)+' km³':'–';
-  $('mQuake').textContent='–';$('mWave').textContent='–';
+  const on=M.state==='impact';
+  $('vVEI').textContent=on?'VEI '+M.vei:'–';$('vVol').textContent=on?fmt(M.vol)+' km³':'–';
+  for(const id of ['mE','mQuake','mWave'])$(id).textContent='–';
 }
 function volcanoTip(n){
   const d=M.target&&M.target.ll?kmTo(M.target.ll,n.ll):0;

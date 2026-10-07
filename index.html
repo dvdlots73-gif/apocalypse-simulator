@@ -29,7 +29,11 @@ button:disabled{opacity:.35;cursor:not-allowed}
 #threats{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 #threats button{font-size:11px;padding:6px 4px;letter-spacing:1px}
 #threats button.on{border-color:var(--hot);color:var(--hot);box-shadow:0 0 8px #ff2a6d55}
-.meteor-only,.quake-only,.disaster,.zombie-only,.volcano-only,.reactor-only{display:none}
+.meteor-only,.quake-only,.disaster,.zombie-only,.volcano-only,.reactor-only,.crop-only,.ice-only{display:none}
+[data-mode=ice] .ice-only{display:block}
+[data-mode=ice] .plague-only{display:none}
+[data-mode=crop] .crop-only{display:block}
+[data-mode=crop] .plague-only{display:none}
 [data-mode=zombie] .zombie-only{display:block}
 [data-mode=zombie] .plague-only{display:none}
 [data-mode=volcano] .volcano-only,[data-mode=volcano] .disaster{display:block}
@@ -38,8 +42,8 @@ button:disabled{opacity:.35;cursor:not-allowed}
 [data-mode=reactor] .plague-only{display:none}
 [data-mode=meteor] .meteor-only,[data-mode=meteor] .disaster,[data-mode=quake] .quake-only,[data-mode=quake] .disaster{display:block}
 [data-mode=meteor] .plague-only,[data-mode=quake] .plague-only{display:none}
-#pinfo,#minfo,#qinfo,#zinfo,#vinfo,#rinfo{font-size:11px;line-height:1.5;margin-top:6px;opacity:.85}
-#pinfo em,#minfo em,#qinfo em,#zinfo em,#vinfo em,#rinfo em{color:var(--hot);font-style:normal}
+#pinfo,#minfo,#qinfo,#zinfo,#vinfo,#rinfo,#cinfo,#iinfo{font-size:11px;line-height:1.5;margin-top:6px;opacity:.85}
+#pinfo em,#minfo em,#qinfo em,#zinfo em,#vinfo em,#rinfo em,#cinfo em,#iinfo em{color:var(--hot);font-style:normal}
 .row{display:flex;gap:6px;margin-top:12px}
 #go{border-color:var(--hot);color:var(--hot)}
 input[type=range]{width:100%;accent-color:var(--line)}
@@ -66,6 +70,23 @@ input[type=range]{width:100%;accent-color:var(--line)}
 <canvas id="globe"></canvas>
 
 <div id="hud">
+  <div class="stat ice-only"><b id="iYear">2026</b><span>YEAR</span></div>
+  <div class="stat ice-only"><b id="iSea" style="color:#5ab4ff;text-shadow:0 0 10px #5ab4ff">+0.00 m</b><span>SEA LEVEL</span></div>
+  <div class="stat ice-only"><b id="iN">0%</b><span>GREENLAND MELTED</span></div>
+  <div class="stat ice-only"><b id="iS">0%</b><span>ANTARCTICA MELTED</span></div>
+  <div class="stat ice-only"><b id="iLand">0 km²</b><span>LAND LOST</span></div>
+  <div class="stat ice-only hot"><b id="iDisp">0</b><span>DISPLACED</span></div>
+  <div class="stat ice-only"><b id="iCity">0</b><span>CITIES UNDERWATER</span></div>
+  <div class="stat ice-only"><b id="iDead">0</b><span>DEATHS</span></div>
+  <div class="stat ice-only"><b id="iRiot">0 · 0</b><span>UNREST · COLLAPSED</span></div>
+  <div class="stat crop-only"><b id="cDate">Oct 2026</b><span>DATE</span></div>
+  <div class="stat crop-only"><b id="cCrop" style="color:#d27828">–</b><span>CROPS FAILING</span></div>
+  <div class="stat crop-only"><b id="cLoss">0%</b><span>WORLD HARVEST LOST</span></div>
+  <div class="stat crop-only"><b id="cPrice">×1.00</b><span>FOOD PRICES</span></div>
+  <div class="stat crop-only"><b id="cHungry">0</b><span>IN FOOD CRISIS</span></div>
+  <div class="stat crop-only hot"><b id="cDead">0</b><span>DEAD FROM HUNGER</span></div>
+  <div class="stat crop-only"><b id="cFamine">0</b><span>REGIONS IN FAMINE</span></div>
+  <div class="stat crop-only"><b id="cRiot">0 · 0</b><span>RIOTS · FALLEN</span></div>
   <div class="stat zombie-only"><b id="zDay">0</b><span>DAY</span></div>
   <div class="stat zombie-only" style="color:#78dc3c"><b id="zZ" style="color:#78dc3c;text-shadow:0 0 10px #78dc3c">0</b><span>ZOMBIES</span></div>
   <div class="stat zombie-only"><b id="zH">8.10B</b><span>HUMANS ALIVE</span></div>
@@ -108,12 +129,11 @@ input[type=range]{width:100%;accent-color:var(--line)}
     <button id="tPlague" class="on">☣ PLAGUE</button>
     <button id="tMeteor">☄ METEOR</button>
     <button id="tReactor">☢ REACTOR MELTDOWN</button>
-    <button disabled title="Coming next">🌾 CROP FAILURE</button>
-    <button disabled title="Coming next">❄ ICE CAPS MELT</button>
+    <button id="tCrop">🌾 CROP FAILURE</button>
+    <button id="tIce">❄ ICE CAPS MELT</button>
     <button id="tVolcano">🌋 SUPERVOLCANO</button>
     <button id="tQuake">🌐 SUPER QUAKE</button>
     <button id="tZombie">🧟 ZOMBIES</button>
-    <button disabled title="Coming next">💻 FIRE SALE</button>
   </div>
   <div class="plague-only">
   <label for="pathogen">PATHOGEN</label>
@@ -152,6 +172,24 @@ input[type=range]{width:100%;accent-color:var(--line)}
   <label for="qfault">FAULT</label>
   <select id="qfault"></select>
   <div id="qinfo"></div>
+  </div>
+  <div class="ice-only">
+  <label for="icap">WHICH ICE</label>
+  <select id="icap"></select>
+  <label for="ispeed">MELT SPEED</label>
+  <select id="ispeed"></select>
+  <div id="iinfo"></div>
+  <label><input id="ichaos" type="checkbox" checked> UNREST &amp; COLLAPSE (RANDOM, FSI-WEIGHTED)</label>
+  <div class="row"><button id="igo">🌊 START MELT</button><button id="ireset">↺ RESET</button></div>
+  </div>
+  <div class="crop-only">
+  <label for="cblight">BLIGHT</label>
+  <select id="cblight"></select>
+  <div id="cinfo"></div>
+  <label for="corigin">WHERE IT STARTS (or click a city)</label>
+  <select id="corigin"></select>
+  <label><input id="cchaos" type="checkbox" checked> FOOD RIOTS &amp; COLLAPSE (RANDOM, FSI-WEIGHTED)</label>
+  <div class="row"><button id="cgo">🌾 RELEASE</button><button id="creset">↺ RESET</button></div>
   </div>
   <div class="zombie-only">
   <label for="ztype">ZOMBIE TYPE</label>
@@ -213,6 +251,23 @@ input[type=range]{width:100%;accent-color:var(--line)}
   <div><i style="border-color:#5ab4ff"></i>tsunami front (height · speed)</div>
   <div><i class="dot" style="background:#ff8c28;box-shadow:0 0 6px #ff8c28"></i>post-quake fires</div>
   <div><span style="color:#ffe14d;display:inline-block;width:28px">☢</span>nuclear plant meltdown</div>
+  </div>
+  <div class="ice-only">
+  <div><i style="border-color:#19e6c1;opacity:.4"></i>today’s coastline (fading)</div>
+  <div><i style="border-color:#ff4d5e"></i>the new coastline</div>
+  <div><i class="dot" style="background:#ff283c99;box-shadow:none"></i>land lost to the sea</div>
+  <div><i class="dot" style="background:#e1f5ff;box-shadow:none"></i>ice sheet (fades as it melts)</div>
+  <div><span style="color:#ff4d5e;display:inline-block;width:28px">✕</span>city underwater</div>
+  <div><i style="border-top:2px dotted #b14aff"></i>people moving inland</div>
+  </div>
+  <div class="crop-only">
+  <div><i class="dot" style="background:none;border:1.5px solid #d27828;box-shadow:none"></i>blight in the fields (size = share infected)</div>
+  <div><i style="border-top:2px dotted #d27828"></i>spores on the wind · grain shipments</div>
+  <div><i class="dot" style="background:#dca032;box-shadow:none"></i>food crisis · <span style="color:#c0502a">■</span> famine</div>
+  <div><i class="dot" style="background:#96704699;box-shadow:none"></i>dust storms</div>
+  <div><i style="border-top:2px dotted #b14aff"></i>hunger refugees</div>
+  <div><span style="color:#ff6e28;display:inline-block;width:28px">✺ ✕</span>bread riots · government falls</div>
+  <div><i style="border-top:1px dashed #dca03266"></i>equator — spores rarely cross it</div>
   </div>
   <div class="zombie-only">
   <div><i style="border-top:2px dotted #78dc3c"></i>zombie horde on the move</div>
@@ -378,7 +433,7 @@ let mode='plague', disease=DISEASES[0], origin=null, day=0, acc=0, quiet=0, runn
 const $=id=>document.getElementById(id);
 const fmt=n=>n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e6?(n/1e6).toFixed(2)+'M':Math.round(n).toLocaleString();
 
-function log(html){const el=document.createElement('div');el.innerHTML=`<b>${disaster()?meteorStamp():'D'+day}</b> ${html}`;$('log').prepend(el);while($('log').children.length>60)$('log').lastChild.remove()}
+function log(html){const el=document.createElement('div');el.innerHTML=`<b>${disaster()?meteorStamp():mode==='crop'?cropStamp():mode==='ice'?iceStamp():'D'+day}</b> ${html}`;$('log').prepend(el);while($('log').children.length>60)$('log').lastChild.remove()}
 
 function reset(){
   nodes.forEach(n=>{n.S=n.N;n.E=n.I=n.R=n.D=n.cum=n.rat=n.hcw=n.Rp=0;n.treat=1;n.full=n.staffLog=n.wasFull=false;n.ratLog=n.flareLog=-999;n.hit=n.det=n.unrest=n.collapse=null});
@@ -521,7 +576,7 @@ $('go').onclick=()=>{
 };
 $('reset').onclick=()=>{$('go').disabled=false;reset()};
 const disaster=()=>mode==='meteor'||mode==='quake'||mode==='volcano'||mode==='reactor';
-const spv=()=>$('spl').textContent=disaster()?`TIME WARP: ×${$('speed').value}`:`TIMELAPSE: ${$('speed').value} DAYS / SEC`;$('speed').oninput=spv;spv();
+const spv=()=>$('spl').textContent=disaster()||mode==='ice'?`TIME WARP: ×${$('speed').value}`:mode==='crop'?`TIMELAPSE: ${$('speed').value} WEEKS / SEC`:`TIMELAPSE: ${$('speed').value} DAYS / SEC`;$('speed').oninput=spv;spv();
 
 // ---------- GLOBE ----------
 const cv=$('globe'),ctx=cv.getContext('2d');
@@ -546,6 +601,8 @@ cv.addEventListener('pointermove',e=>{
   if(!hover){tip.style.display='none';return}
   const n=hover;tip.style.display='block';tip.style.left=Math.min(e.clientX+14,W-220)+'px';tip.style.top=e.clientY+14+'px';
   if(mode==='zombie'){tip.innerHTML=zombieTip(n);return}
+  if(mode==='crop'){tip.innerHTML=cropTip(n);return}
+  if(mode==='ice'){tip.innerHTML=iceTip(n);return}
   if(disaster()){tip.innerHTML=meteorTip(n);return}
   tip.innerHTML=`<b>${n.name}</b><br>${n.village?'village':'region'} pop ${fmt(n.N)}<br>infected now ${fmt(n.E+n.I)}<br>deaths ${fmt(n.D)}`+
     (n.hit!==null?`<br>first case day ${n.hit}`:'')+(locked(n)?`<br><span style="color:#19e6c1">${stage>=4?'LOCKDOWN':'isolation'} since day ${n.det}</span>`:'')+
@@ -556,15 +613,15 @@ cv.addEventListener('pointermove',e=>{
     (n.Rp>=1?`<br>survivors still carrying virus ${fmt(n.Rp)}`:'')+
     `<br><span style="opacity:.6">${n.country} · fragility ${n.fsi}/120 · ${n.beds.toFixed(1)} beds/1000</span>`+(!started?'<br><span style="color:#ff2a6d">click to set patient zero</span>':'');
 });
-cv.addEventListener('click',e=>{if(mode==='zombie')return zombieClick();if(disaster())return meteorClick(e);if(hover&&!started)setOrigin(hover)});
+cv.addEventListener('click',e=>{if(mode==='zombie')return zombieClick();if(mode==='crop')return cropClick();if(mode==='ice')return;if(disaster())return meteorClick(e);if(hover&&!started)setOrigin(hover)});
 function setMode(m){
-  mode=m;document.body.dataset.mode=m;$('tPlague').classList.toggle('on',m==='plague');$('tMeteor').classList.toggle('on',m==='meteor');$('tQuake').classList.toggle('on',m==='quake');$('tZombie').classList.toggle('on',m==='zombie');$('tVolcano').classList.toggle('on',m==='volcano');$('tReactor').classList.toggle('on',m==='reactor');
-  $('go').disabled=false;reset();meteorReset();spv();if(m==='plague')setOrigin(origin);if(m==='meteor')pickTarget();if(m==='quake')quakePick();if(m==='zombie')zombieReset();if(m==='volcano')volcanoReset();if(m==='reactor')reactorReset();
+  mode=m;document.body.dataset.mode=m;$('tPlague').classList.toggle('on',m==='plague');$('tMeteor').classList.toggle('on',m==='meteor');$('tQuake').classList.toggle('on',m==='quake');$('tZombie').classList.toggle('on',m==='zombie');$('tVolcano').classList.toggle('on',m==='volcano');$('tReactor').classList.toggle('on',m==='reactor');$('tCrop').classList.toggle('on',m==='crop');$('tIce').classList.toggle('on',m==='ice');coastFade=1;
+  $('go').disabled=false;reset();meteorReset();spv();if(m==='plague'&&origin)setOrigin(origin);if(m==='meteor')pickTarget();if(m==='quake')quakePick();if(m==='zombie')zombieReset();if(m==='volcano')volcanoReset();if(m==='reactor')reactorReset();if(m==='crop')cropReset();if(m==='ice')iceReset();
 }
-$('tPlague').onclick=()=>setMode('plague');$('tMeteor').onclick=()=>setMode('meteor');$('tQuake').onclick=()=>setMode('quake');$('tZombie').onclick=()=>setMode('zombie');$('tVolcano').onclick=()=>setMode('volcano');$('tReactor').onclick=()=>setMode('reactor');
+$('tPlague').onclick=()=>setMode('plague');$('tMeteor').onclick=()=>setMode('meteor');$('tQuake').onclick=()=>setMode('quake');$('tZombie').onclick=()=>setMode('zombie');$('tVolcano').onclick=()=>setMode('volcano');$('tReactor').onclick=()=>setMode('reactor');$('tCrop').onclick=()=>setMode('crop');$('tIce').onclick=()=>setMode('ice');
 
 function draw(tNow){
-  const c=[W/2,H/2],R=Math.min(W,H)*.42*zoom;
+  const c=[W/2+(window.CAMX||0),H/2+(window.CAMY||0)],R=Math.min(W,H)*.42*zoom;
   proj.translate(c).scale(R).rotate(rot);
   ctx.clearRect(0,0,W,H);
   // ocean sphere
@@ -580,9 +637,11 @@ function draw(tNow){
   }
   // coastlines (two-pass glow) + borders
   ctx.beginPath();path(land);ctx.lineWidth=4;ctx.strokeStyle='rgba(25,230,193,.07)';ctx.stroke();
-  ctx.lineWidth=1;ctx.strokeStyle='rgba(25,230,193,.55)';ctx.stroke();
+  ctx.lineWidth=1;ctx.strokeStyle=`rgba(25,230,193,${.55*coastFade})`;ctx.stroke();
   ctx.beginPath();path(borders);ctx.lineWidth=.5;ctx.strokeStyle='rgba(25,230,193,.18)';ctx.stroke();
   if(mode==='zombie')return zombieDraw(c);
+  if(mode==='crop')return cropDraw(c);
+  if(mode==='ice')return iceDraw(c);
   if(disaster())return meteorDraw(c);
   // nodes
   for(const n of nodes){
@@ -643,6 +702,8 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(.1,(now-last)/1000);last=now;
   if(mode==='zombie')zombieTick(dt);
+  else if(mode==='crop')cropTick(dt);
+  else if(mode==='ice')iceTick(dt);
   else if(disaster())meteorTick(dt);
   else if(running){acc+=dt*+$('speed').value;while(acc>=1&&running){step();acc-=1}hud()}
   if(flyTo){const dx=((flyTo[0]-rot[0]+540)%360)-180,dy=flyTo[1]-rot[1];rot[0]+=dx*.08;rot[1]+=dy*.08;if(Math.abs(dx)+Math.abs(dy)<.2)flyTo=null}
@@ -662,14 +723,17 @@ d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(w
     c.nodes.push(n);n.country=FIX[n.name]||c.properties.name;
     n.fsi=FSI[n.country]??60;n.beds=(BEDS[n.country]??2)*(n.remote?.3:1);n.frag=Math.max(0,Math.min(1,(n.fsi-15)/100));
   }
-  showInfo();reset();typeof meteorInit==='function'&&meteorInit();typeof zombieInit==='function'&&zombieInit();typeof volcanoInit==='function'&&volcanoInit();typeof reactorInit==='function'&&reactorInit();setOrigin(nodes.find(n=>n.name.startsWith('Verkhoyansk')));
+  showInfo();reset();typeof meteorInit==='function'&&meteorInit();typeof zombieInit==='function'&&zombieInit();typeof volcanoInit==='function'&&volcanoInit();typeof reactorInit==='function'&&reactorInit();typeof cropInit==='function'&&cropInit();typeof iceInit==='function'&&iceInit();typeof trailerInit==='function'&&trailerInit();setOrigin(nodes.find(n=>n.name.startsWith('Verkhoyansk')));
   requestAnimationFrame(frame);
 }).catch(e=>{$('log').textContent='Failed to load world map: '+e.message});
 </script>
-<script src="meteor.js"></script>
-<script src="quake.js"></script>
-<script src="zombie.js"></script>
-<script src="volcano.js"></script>
-<script src="reactor.js"></script>
+<script src="meteor.js?v=11"></script>
+<script src="quake.js?v=11"></script>
+<script src="zombie.js?v=11"></script>
+<script src="crop.js?v=11"></script>
+<script src="ice.js?v=11"></script>
+<script src="trailer.js?v=11"></script>
+<script src="volcano.js?v=11"></script>
+<script src="reactor.js?v=11"></script>
 </body>
 </html>
