@@ -2,7 +2,7 @@
 // Every cue fires off the audio clock (audio.currentTime), so cuts stay locked to the music.
 // Cue times come from the track itself: bass hits, the break at 51.2 s, the drop at 52.3 s, the peak at 80–86 s.
 // Picture is a centred 16:9 frame; the camera layer adds shake, zoom kicks, slow push-ins and rumbles.
-const TR={on:/[?&]trailer/.test(location.search),i:0};
+const TR={on:/[?&]trailer/.test(location.search),render:/[?&]render/.test(location.search),i:0,flash:0,black:1,blackTo:1};
 const TRACK='Trailer Music - Apocalypse SIM edit.mp3';
 const HITS=[21.5,34.9,51.3,52.3,54.5,62.7,67.6,74.1,80.4,82.1,83.8,85.5]; // flash + kick on each
 
@@ -11,14 +11,14 @@ const CAM={zt:1,ease:3,drift:0,amp:0,rumble:0,rumbleTo:0};
 const camTo=(z,ease=3)=>{CAM.zt=z;CAM.ease=ease};
 const shake=a=>{CAM.amp=Math.max(CAM.amp,a)};
 const kick=(a,zk=.06)=>{shake(a);zoom*=1+zk};                         // punch in; it eases back to the target
-const rumble=(a,dur)=>{CAM.rumble=a;CAM.rumbleTo=TR.audio.currentTime+dur};
+const rumble=(a,dur)=>{CAM.rumble=a;CAM.rumbleTo=TR.t+dur};
 function trCam(lon,lat,z,{spin=true,drift=0}={}){rot=[-lon,-lat];flyTo=null;zoom=z;camTo(z);CAM.drift=drift;$('spin').checked=spin}
 
 function trSpeed(v){const s=$('speed');s.value=v;s.dispatchEvent(new Event('input'))}
 function trCard(html,cls=''){const c=$('trCard');c.className=cls;c.innerHTML=html;c.style.opacity=html?1:0}
-function trBlack(on){$('trBlack').style.opacity=on?1:0}
+function trBlack(on){TR.blackTo=on?1:0}
 function trHud(on){$('hud').style.opacity=on?1:0}
-function trFlash(a=.35){const f=$('trFlash');f.style.transition='none';f.style.opacity=a;requestAnimationFrame(()=>{f.style.transition='opacity .45s';f.style.opacity=0})}
+function trFlash(a=.35){TR.flash=Math.max(TR.flash,a)}
 const jump=hours=>{M.s=Math.log(1+hours)/.35}; // skip a disaster's clock ahead
 
 // ---- 16:9 frame: the globe canvas, HUD and captions all live inside it; the rest is black ----
@@ -78,13 +78,14 @@ const CUES=[
 
 function trailerInit(){
   if(!TR.on||TR.inited)return;TR.inited=true;
-  document.body.classList.add('trailer');
+  document.body.classList.add('trailer');if(TR.render)document.body.classList.add('render');
   const css=document.createElement('style');css.textContent=`
   body.trailer{background:#000}
   body.trailer #panel,body.trailer #log,body.trailer #tip,body.trailer #banner{display:none!important}
   body.trailer #hud{transition:opacity .4s}
   #trFrame{position:fixed;pointer-events:none;z-index:10;box-shadow:0 0 0 100vmax #000} /* above the black + flash layers so captions show over them */
-  #trBlack{position:fixed;inset:0;background:#000;transition:opacity .35s;pointer-events:none;z-index:8}
+  #trBlack{position:fixed;inset:0;background:#000;pointer-events:none;z-index:8}
+  body.render *{transition:none!important;animation:none!important}
   #trFlash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:9}
   #trCard{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;transition:opacity .25s;padding:0 16px;z-index:10;
     font:400 clamp(20px,3.6vw,44px) 'Share Tech Mono',monospace;letter-spacing:.2em;color:#e8fffb;text-shadow:0 0 14px var(--line)}
@@ -110,20 +111,23 @@ function trailerInit(){
   const audio=new Audio(encodeURI(TRACK));audio.preload='auto';TR.audio=audio;
   if(!I.dem)iLoad(); // the ice scenes need the elevation data ready before 62.7 s
   const btn=p.querySelector('button');
-  const wait=setInterval(()=>{if(I.dem&&audio.readyState>=3){clearInterval(wait);btn.disabled=false;btn.textContent='▶ PLAY TRAILER'}},200);
-  const play=TR.play=()=>{trCard('');TR.i=0;TR.h=0;CAM.amp=0;TR.playing=true;TR.endAt=null;audio.currentTime=0;audio.play()};
+  // ?trailer&render: start by itself on a frame-stepped clock, silent (the export muxes the MP3 in afterwards)
+  const wait=setInterval(()=>{if(I.dem&&(TR.render||audio.readyState>=3)){clearInterval(wait);btn.disabled=false;btn.textContent='▶ PLAY TRAILER';if(TR.render){p.remove();play()}}},200);
+  const play=TR.play=()=>{trCard('');TR.i=0;TR.h=0;CAM.amp=0;TR.playing=true;TR.endAt=null;TR.t0=performance.now();if(!TR.render){audio.currentTime=0;audio.play()}};
   btn.onclick=()=>{document.documentElement.requestFullscreen?.().catch(()=>{});p.remove();play()}; // don't wait on fullscreen: some browsers never settle it
   audio.onended=()=>{TR.endAt=performance.now()};
   let last=performance.now();
   (function loop(now){
     const dt=Math.min(.1,(now-last)/1000);last=now;
-    if(TR.playing){const t=TR.endAt?audio.duration+(now-TR.endAt)/1000:audio.currentTime;
+    if(TR.playing){const t=TR.t=TR.render?(now-TR.t0)/1000:TR.endAt?audio.duration+(now-TR.endAt)/1000:audio.currentTime;
       while(TR.i<CUES.length&&CUES[TR.i][0]<=t)try{CUES[TR.i++][1]()}catch(e){console.error('cue',CUES[TR.i-1][0],e)} // a bad cue mustn't stop the show
       while(TR.h<HITS.length&&HITS[TR.h]<=t){trFlash(.22);kick(8,.05);TR.h++}
       // camera: ease zoom toward target (+slow drift), decaying shake, rumble floor while it lasts
       CAM.zt*=1+CAM.drift*dt;zoom+=(CAM.zt-zoom)*(1-Math.exp(-dt*CAM.ease));
       CAM.amp=Math.max(CAM.amp*Math.exp(-dt*6),t<CAM.rumbleTo?CAM.rumble:0);
     }else CAM.amp=0;
+    TR.flash*=Math.exp(-dt/.15);TR.black+=(TR.blackTo-TR.black)*(1-Math.exp(-dt/.1));
+    $('trFlash').style.opacity=TR.flash<.01?0:TR.flash;$('trBlack').style.opacity=TR.black;
     window.CAMX=(Math.random()*2-1)*CAM.amp;window.CAMY=(Math.random()*2-1)*CAM.amp;
     requestAnimationFrame(loop)})(last);
 }
